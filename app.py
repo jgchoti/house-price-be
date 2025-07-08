@@ -1,6 +1,9 @@
 import requests
 import streamlit as st
 import json
+from geopy.geocoders import Nominatim
+import pandas as pd
+
 
 URL_API = "https://house-price-be.onrender.com/"
 
@@ -37,8 +40,12 @@ with st.form("my_form"):
     ("BRUSSELS", "LUXEMBOURG", "ANTWERP", "FLEMISH BRABANT", "EAST FLANDERS", "WEST FLANDERS", "LIÈGE", "WALLOON BRABANT", "LIMBURG", "NAMUR", "HAINAUT"),
     index=None,
     placeholder="Select property location...")
+    
+    
     postcode = st.number_input(
     "🇧🇪 Insert a postcode", value=None, placeholder="Type a number...", min_value=1000,max_value=9999)
+    
+    
     epc_score = st.selectbox(
     "⚡️ epcScore? ",
     ("A+", "A", "B", "C", "D", "E", "F", "G"),
@@ -102,22 +109,6 @@ with st.form("my_form"):
                 property_input[field] = True
                 selected.append(field_label)
     
-    
-    # Display selections
-    st.divider()
-    st.subheader("📋 Your Selection:")
-    if type and subtype and province:
-        st.write(f"**Property:** {type} - {subtype}")
-        st.write(f"**Location:** {province}")
-        if postcode:
-            st.write(f"**Postcode:** {postcode}")
-        if epc_score:
-            st.write(f"**EPC Score:** {epc_score}")
-    
-    if selected:
-        st.write(f"**Extra Features:** ✅ {', '.join(selected)}")
-   
-   
     col1, col2,col3,col4 = st.columns(4)
     with col2:
         submit_button = st.form_submit_button("🔮 Predict Price", type="primary")
@@ -129,7 +120,26 @@ with st.form("my_form"):
     if submit_button:
         data = json.dumps(property_input)
         response = requests.post(f"{URL_API}/predict", data = data).json()
-
+        
+st.divider()
+st.subheader("📋 Your Selection:")
+if type and subtype and province:
+    st.write(f"**Property:** {type} - {subtype}")
+    st.write(f"**Location:** {province}")
+    if postcode:
+        st.write(f"**Postcode:** {postcode}")
+    if epc_score:
+        st.write(f"**EPC Score:** {epc_score}")
+    if habitableSurface != 0:
+        st.write(f"**Habitable Surface:** {habitableSurface} m2")
+    if terraceSurface != 0:
+        st.write(f"**terrace Surface:** {terraceSurface} m2")
+    if gardenSurface != 0:
+        st.write(f"**Garden Surface:** {gardenSurface} m2")
+    
+if selected:
+    st.write(f"**Extra Features:** ✅ {', '.join(selected)}")
+    
 if response:
     if response.get("status_code") == 200:
         st.badge("Success", icon=":material/check:", color="green") 
@@ -144,8 +154,19 @@ if response:
             else:
                 st.error(f"❌ {response['detail']}")
 
-
+    
+def get_location(query):
+    geolocator = Nominatim(user_agent="property-price-predictor")
+    return geolocator.geocode(query)
+    
+if postcode and province:
+    location_query = f"{postcode}, {province}, Belgium"
+    location = get_location(location_query)
         
-   
-   
-
+    st.subheader("📍 Approximate Location")
+        
+    if location:
+        location_df = pd.DataFrame({'lat': [location.latitude], 'lon': [location.longitude]})
+        st.map(location_df)
+    else:
+        st.warning("⚠️ Could not find coordinates for the given postcode.")
