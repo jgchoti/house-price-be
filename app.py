@@ -178,17 +178,17 @@ if submit_button:
         if response.status_code == 200:
             prediction = response.json()
         else:
-            st.error(f"❌ API Error {response.status_code}")
             try:
                 error_data = response.json()
                 if "detail" in error_data:
                     if isinstance(error_data["detail"], list):
-                        for error in error_data["detail"]:
-                            st.error(f"❌ '{error['field']}' {error['message']}.")
+                        missing_fields = [error["field"] for error in error_data["detail"] if "field" in error]
+                        st.error(f"❌  Missing Input in: {', '.join(missing_fields)}")
                     else:
-                        st.error(f"❌ {error_data['detail']}")
+                        st.error(f"❌  {error_data['detail']}")
             except:
                 st.warning("⚠️ Could not parse error response from server.")
+                st.warning(response.json())
             prediction = None
 
     except requests.exceptions.RequestException as e:
@@ -215,7 +215,7 @@ if prediction:
     if selected:
         st.write("**Extra Features:** " + " ".join([f"✅ {feat}" for feat in selected]))
     st.badge("Success", icon=":material/check:", color="green")
-    st.header(f"Predicted Price: €{prediction["prediction"]}", divider=True)
+    st.header(f"💶 Predicted Price: €{prediction["prediction"]:,.2f}", divider=True)
 
     st.divider()
     if postcode and province:
@@ -232,7 +232,7 @@ if prediction:
 else:
     if prediction and "detail" in prediction:
         if isinstance(prediction["detail"], list):
-            for error in prediction["detail"]:
-                st.error(f"❌ '{error['field']}' {error['message']}.")
+            missing_fields = [error["field"] for error in prediction["detail"] if "field" in error]
+            st.error(f"❌ Missing Input in: {', '.join(missing_fields)}")
         else:
-            st.error(f"❌ {prediction['detail']}")
+            st.error(f"❌ Missing Input in: {prediction['field']}")
