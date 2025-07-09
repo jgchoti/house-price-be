@@ -279,6 +279,7 @@ def main():
             )
     if subtype:
         subtype = subtype.replace(" ", "_")
+    st.text(" ")
 
     # Main form
     with st.form("property_form", clear_on_submit=False):
