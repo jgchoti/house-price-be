@@ -19,7 +19,7 @@ st.markdown(
 <style>
     .main-header {
         text-align: center;
-        padding: 2rem 0;
+        padding: 36px 0;
         background: linear-gradient(90deg, #FF4B4B 0%, #764ba2 100%);
         color: white;
         border-radius: 10px;
@@ -107,7 +107,6 @@ def predict_price(data):
         st.secrets["predict_api"]["predict_endpoint"],)
         payload = {"data": data}
         response = requests.post(url, json=payload)
-        print(response)
         return response
     else:
         st.warning("Please fill in all required fields.")
