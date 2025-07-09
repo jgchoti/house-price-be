@@ -6,6 +6,7 @@ import pandas as pd
 import time
 from urllib.parse import urljoin
 import os
+import re
 
 st.set_page_config(
     page_title="Property Price Predictor",
@@ -79,6 +80,21 @@ st.markdown(
 """,
     unsafe_allow_html=True,
 )
+
+
+def format_for_display(text):
+    """Convert API format to user-friendly display format"""
+    if not text:
+        return text
+    return text.replace('_', ' ').title()
+
+def format_for_api(text):
+    """Convert user input to API format"""
+    if not text:
+        return text
+    return text.replace(' ', '_').upper()
+
+
 def load_geodata():
     base_dir = os.path.dirname(os.path.abspath(__file__))
     data_path = os.path.join(base_dir, "data", "georef-belgium-postal-codes.csv")
@@ -105,7 +121,9 @@ def predict_price(data):
         url = urljoin(
         st.secrets["predict_api"]["base_url"],
         st.secrets["predict_api"]["predict_endpoint"],)
+      
         payload = {"data": data}
+        print(payload)
         response = requests.post(url, json=payload)
         return response
     else:
@@ -148,13 +166,14 @@ def create_property_summary(property_data):
     summary = {}
 
     if property_data["type"] and property_data["subtype"]:
-        property_data["subtype"] = property_data["subtype"].replace("_", " ")
+        property_data["type"] = format_for_display(property_data["type"])
+        property_data["subtype"] =  format_for_display(property_data["subtype"])
         summary["Property Type"] = (
             f"{property_data['type']} - {property_data['subtype']}"
         )
 
     if property_data["province"]:
-        summary["Province"] = property_data["province"]
+        summary["Province"] = re.sub(r'(?<=[a-z])(?=[A-Z])', ' ', property_data["province"])
 
     if property_data["postCode"]:
         summary["Postcode"] = str(property_data["postCode"])
@@ -210,58 +229,42 @@ def main():
         )
 
     list_apt = [
-        "APARTMENT",
-        "FLAT_STUDIO",
-        "DUPLEX",
-        "PENTHOUSE",
-        "GROUND_FLOOR",
-        "APARTMENT_BLOCK",
-        "KOT",
-        "EXCEPTIONAL_PROPERTY",
-        "MIXED_USE_BUILDING",
-        "TRIPLEX",
-        "LOFT",
-        "SERVICE_FLAT",
+       'Apartment', 'Flat Studio', 'Duplex', 'Penthouse', 'Ground Floor',
+    'Apartment Block', 'Kot', 'Exceptional Property', 'Mixed Use Building',
+    'Triplex', 'Loft', 'Service Flat'
     ]
     list_house = [
-        "HOUSE",
-        "VILLA",
-        "TOWN_HOUSE",
-        "CHALET",
-        "MANOR_HOUSE",
-        "MANSION",
-        "BUNGALOW",
-        "COUNTRY_COTTAGE",
-        "OTHER_PROPERTY",
-        "CASTLE",
-        "PAVILION",
-        "EXCEPTIONAL_PROPERTY",
+       'House', 'Villa', 'Town House', 'Chalet', 'Manor House', 'Mansion',
+    'Bungalow', 'Country Cottage', 'Other Property', 'Castle', 'Pavilion',
+    'Exceptional Property'
     ]
+    
+    list_type = ['Apartment', 'House']
 
     st.subheader("🏡 Property Details")
 
     col1, col2 = st.columns(2)
 
     with col1:
-        property_type = st.selectbox(
+        property_type_display = st.selectbox(
             "Property Type",
-            options=["APARTMENT", "HOUSE"],
+            options= list_type,
             index=None,
             placeholder="Select property type...",
             key="property_type",
         )
 
     with col2:
-        if st.session_state.get("property_type") == "APARTMENT":
-            subtype = st.selectbox(
+        if st.session_state.get("property_type") == "Apartment":
+            subtype_display = st.selectbox(
                 "Apartment Subtype",
                 options=[item.replace('_', ' ') for item in list_apt],
                 index=None,
                 placeholder="Select detailed subtype...",
                 key="subtype",
             )
-        elif st.session_state.get("property_type") ==  "HOUSE":
-            subtype = st.selectbox(
+        elif st.session_state.get("property_type") ==  "House":
+            subtype_display = st.selectbox(
                 "House Subtype",
                 options=[item.replace('_', ' ') for item in list_house],
                 index=None,
@@ -269,7 +272,7 @@ def main():
                 key="subtype",
             )
         else:
-            subtype = st.selectbox(
+            subtype_display = st.selectbox(
                 "Property Subtype",
                 options=[],
                 index=None,
@@ -277,8 +280,7 @@ def main():
                 key="subtype",
                 disabled=True,
             )
-    if subtype:
-        subtype = subtype.replace(" ", "_")
+
     st.text(" ")
 
     # Main form
@@ -290,10 +292,10 @@ def main():
         col1, col2 = st.columns(2)
 
         with col1:
-            province = st.selectbox(
+            province_display = st.selectbox(
                 "Province",
                 options=[
-                    'Brussels', 'Luxembourg', 'Antwerp', 'FlemishBrabant', 'EastFlanders', 'WestFlanders', 'Liège', 'WalloonBrabant', 'Limburg', 'Namur', 'Hainaut'
+                    'Brussels', 'Luxembourg', 'Antwerp', 'Flemish Brabant', 'East Flanders', 'West Flanders', 'Liège', 'Walloon Brabant', 'Limburg', 'Namur', 'Hainaut'
                 ],
                 index=None,
                 placeholder="Select province...",
@@ -340,15 +342,15 @@ def main():
 
         with col1:
             habitableSurface = st.number_input(
-                "Habitable Surface (m²)", min_value=0, value=0, step=1
+                "Habitable Surface (m²)", min_value=0.0, value=50.0, step=0.1, format="%.2f"
             )
         with col2:
             terraceSurface = st.number_input(
-                "Terrace Surface (m²)", min_value=0, value=0, step=1
+                "Terrace Surface (m²)", min_value=0.0, value=0.0, step=0.1, format="%.2f"
             )
         with col3:
             gardenSurface = st.number_input(
-                "Garden Surface (m²)", min_value=0, value=0, step=1
+                "Garden Surface (m²)", min_value=0.0, value=0.0, step=0.1, format="%.2f"
             )
 
         # Extra Features
@@ -373,6 +375,11 @@ def main():
             ("hasPhotovoltaicPanels", "Photovoltaic Panels"),
             ("hasLivingRoom", "Living Room"),
         ]
+        
+        property_type = format_for_api(property_type_display) if property_type_display else None
+        subtype = format_for_api(subtype_display) if subtype_display else None
+        province = province_display.replace(" ", "") if province_display else None
+        
         property_input = {
             "habitableSurface": habitableSurface,
             "type": property_type,
