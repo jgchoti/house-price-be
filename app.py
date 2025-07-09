@@ -4,6 +4,8 @@ import json
 from geopy.geocoders import Nominatim
 import pandas as pd
 import time
+from urllib.parse import urljoin
+import os
 
 st.set_page_config(
     page_title="Property Price Predictor",
@@ -18,41 +20,41 @@ st.markdown(
     .main-header {
         text-align: center;
         padding: 2rem 0;
-        background: linear-gradient(90deg, #FF4B4B 0%, #721c24 100%);
+        background: linear-gradient(90deg, #FF4B4B 0%, #764ba2 100%);
         color: white;
         border-radius: 10px;
-        margin-bottom: 2rem;
+        margin-bottom: 32px;
     }
     
     .status-container {
         display: flex;
         justify-content: center;
-        margin-bottom: 2rem;
+        margin-bottom: 32px;
     }
     
     .status-good {
         background-color: #d4edda;
         border: 1px solid #c3e6cb;
         color: #155724;
-        padding: 0.75rem 1.25rem;
-        border-radius: 0.25rem;
+        padding: 12px 20px;
+        border-radius: 4px;
     }
     
     .status-error {
         background-color: #f8d7da;
         border: 1px solid #f5c6cb;
         color: #721c24;
-        padding: 0.75rem 1.25rem;
-        border-radius: 0.25rem;
+        padding: 12px 20px;
+        border-radius: 4px;
     }
     
     .prediction-card {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 2rem;
+        padding: 32px;
         border-radius: 15px;
         color: white;
         text-align: center;
-        margin: 2rem 0;
+        margin: 32px; 0;
         box-shadow: 0 10px 30px rgba(0,0,0,0.1);
     }
     
@@ -60,48 +62,78 @@ st.markdown(
         display: inline-block;
         background-color: #e3f2fd;
         color: #1976d2;
-        padding: 0.25rem 0.75rem;
+        padding: 4px 12px;
         border-radius: 20px;
-        margin: 0.25rem;
-        font-size: 0.875rem;
-    }
-    
-    .section-divider {
-        border: none;
-        height: 2px;
-        background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
-        margin: 2rem 0;
+        margin: 4px;
+        font-size: 14px;
     }
     
     .info-card {
         background-color: #f8f9fa;
-        border-left: 4px solid #667eea;
-        padding: 1rem;
-        margin: 1rem 0;
+        border-left: 6px solid #764ba2;
+        padding: 16px;
+        margin: 6px 0;
         border-radius: 0 10px 10px 0;
     }
 </style>
 """,
     unsafe_allow_html=True,
 )
+def load_geodata():
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    data_path = os.path.join(base_dir, "data", "georef-belgium-postal-codes.csv")
+    geo_df = pd.read_csv(data_path, delimiter=";")
+    geo_df[["lat", "lon"]] = geo_df["Geo Point"].str.split(",", expand=True)
+    geo_df["lat"] = geo_df["lat"].astype(float)
+    geo_df["lon"] = geo_df["lon"].astype(float)
+    geo_df["postCode"] = geo_df["Post code"].astype(str)
+    grouped_df = geo_df.groupby("postCode")[["lat", "lon"]].mean()
+    return grouped_df
 
-URL_API = "https://house-price-be.onrender.com/"
+
+def check_missing_fields(input):
+    missing = [k for k, v in input.items() if v is None]
+    if missing:
+        for field in missing:
+            st.error(f"❌ Missing value for: {field}")
+        return False
+    return True
 
 
-def get_location(query):
+def predict_price(data):
+    if check_missing_fields(data):
+        url = urljoin(
+        st.secrets["predict_api"]["base_url"],
+        st.secrets["predict_api"]["predict_endpoint"],)
+        payload = {"data": data}
+        response = requests.post(url, json=payload)
+        print(response)
+        return response
+    else:
+        st.warning("Please fill in all required fields.")
+
+def get_location(postcode):
     """Get location coordinates from address query"""
     try:
-        geolocator = Nominatim(user_agent="property-price-predictor")
-        return geolocator.geocode(query)
+        geo_df = load_geodata()
+        postcode =str(postcode)
+        if postcode in geo_df.index:
+            lat, lon = geo_df.loc[postcode]
+            return lat, lon
+        else:
+            st.warning(f"⚠️ Postcode {postcode} not found in database")
+            return None, None
     except Exception as e:
-        st.error(f"Error getting location: {str(e)}")
-        return None
+        st.error(f"❌ Error getting location: {str(e)}")
+        return None, None
+       
 
 
 def check_server_status():
     """Check if the API server is running"""
     try:
-        response = requests.get(URL_API, timeout=5)
+        url = st.secrets["predict_api"]["base_url"]
+        response = requests.get(url, timeout=5)
         return response.json().get("message", "Unknown"), True
     except requests.exceptions.RequestException:
         return "Connection Error", False
@@ -117,6 +149,7 @@ def create_property_summary(property_data):
     summary = {}
 
     if property_data["type"] and property_data["subtype"]:
+        property_data["subtype"] = property_data["subtype"].replace("_", " ")
         summary["Property Type"] = (
             f"{property_data['type']} - {property_data['subtype']}"
         )
@@ -179,31 +212,31 @@ def main():
 
     list_apt = [
         "APARTMENT",
-        "FLAT STUDIO",
+        "FLAT_STUDIO",
         "DUPLEX",
         "PENTHOUSE",
-        "GROUND FLOOR",
-        "APARTMENT BLOCK",
+        "GROUND_FLOOR",
+        "APARTMENT_BLOCK",
         "KOT",
-        "EXCEPTIONAL PROPERTY",
-        "MIXED USE BUILDING",
+        "EXCEPTIONAL_PROPERTY",
+        "MIXED_USE_BUILDING",
         "TRIPLEX",
         "LOFT",
-        "SERVICE FLAT",
+        "SERVICE_FLAT",
     ]
     list_house = [
         "HOUSE",
         "VILLA",
-        "TOWN HOUSE",
+        "TOWN_HOUSE",
         "CHALET",
-        "MANOR HOUSE",
+        "MANOR_HOUSE",
         "MANSION",
         "BUNGALOW",
-        "COUNTRY COTTAGE",
-        "OTHER PROPERTY",
+        "COUNTRY_COTTAGE",
+        "OTHER_PROPERTY",
         "CASTLE",
         "PAVILION",
-        "EXCEPTIONAL PROPERTY",
+        "EXCEPTIONAL_PROPERTY",
     ]
 
     st.subheader("🏡 Property Details")
@@ -223,7 +256,7 @@ def main():
         if st.session_state.get("property_type") == "APARTMENT":
             subtype = st.selectbox(
                 "Apartment Subtype",
-                options=list_apt,
+                options=[item.replace('_', ' ') for item in list_apt],
                 index=None,
                 placeholder="Select detailed subtype...",
                 key="subtype",
@@ -231,7 +264,7 @@ def main():
         elif st.session_state.get("property_type") ==  "HOUSE":
             subtype = st.selectbox(
                 "House Subtype",
-                options=list_house,
+                options=[item.replace('_', ' ') for item in list_house],
                 index=None,
                 placeholder="Select detailed subtype...",
                 key="subtype",
@@ -245,6 +278,8 @@ def main():
                 key="subtype",
                 disabled=True,
             )
+    if subtype:
+        subtype = subtype.replace(" ", "_")
 
     # Main form
     with st.form("property_form", clear_on_submit=False):
@@ -258,17 +293,7 @@ def main():
             province = st.selectbox(
                 "Province",
                 options=[
-                    "BRUSSELS",
-                    "LUXEMBOURG",
-                    "ANTWERP",
-                    "FLEMISH BRABANT",
-                    "EAST FLANDERS",
-                    "WEST FLANDERS",
-                    "LIÈGE",
-                    "WALLOON BRABANT",
-                    "LIMBURG",
-                    "NAMUR",
-                    "HAINAUT",
+                    'Brussels', 'Luxembourg', 'Antwerp', 'FlemishBrabant', 'EastFlanders', 'WestFlanders', 'Liège', 'WalloonBrabant', 'Limburg', 'Namur', 'Hainaut'
                 ],
                 index=None,
                 placeholder="Select province...",
@@ -383,15 +408,20 @@ def main():
         for field_key, _ in boolean_fields:
             if st.session_state.get(field_key, False):
                 property_input[field_key] = True
+            else:
+                property_input[field_key] = False
 
     # Process form submission
     if submit_button:
         with st.spinner("🔄 Processing your request..."):
             try:
-                response = requests.post(f"{URL_API}/predict", json=property_input)
-
-                if response.status_code == 200:
-                    prediction = response.json()
+                response = predict_price(property_input)
+                
+                if response is None:
+                    pass
+                elif response.status_code == 200:
+                    response = response.json()
+                    prediction = response["data"]
 
                     # Create property summary
                     summary = create_property_summary(property_input)
@@ -425,43 +455,35 @@ def main():
 
                     with col2:
                         # Map display
-                        if postcode and province:
+                        if postcode:
                             st.subheader("📍 Location")
-                            location_query = f"{postcode}, {province}, Belgium"
-                            location = get_location(location_query)
+                            lat, lon = get_location(postcode)
 
-                            if location:
-                                location_df = pd.DataFrame(
-                                    {
-                                        "lat": [location.latitude],
-                                        "lon": [location.longitude],
-                                    }
-                                )
+                            if lat and lon:
+                                location_df = pd.DataFrame([{"lat": lat,"lon": lon,}])
                                 st.map(location_df, zoom=10)
                             else:
                                 st.warning("⚠️ Could not display location on map")
 
-                else:
-                    try:
-                        error_data = response.json()
-                        if "detail" in error_data:
-                            if isinstance(error_data["detail"], list):
-                                missing_fields = [
-                                    error.get("field", "Unknown field")
-                                    for error in error_data["detail"]
-                                    if isinstance(error, dict)
-                                ]
-                                st.error(
-                                    f"❌ Missing or invalid input in: {', '.join(missing_fields)}"
-                                )
-                            else:
-                                st.error(f"❌ {error_data['detail']}")
+                elif response.status_code == 422:
+                    detail = response.json().get("detail", [])
+                    if detail:
+                        error = detail[0]
+                        loc = error.get("loc", [])
+                        msg = error.get("msg", "Unknown error")
+                        if len(loc) > 2:
+                            field = loc[2]
+                            st.error(f"⚠️ {field} : {msg}")
                         else:
-                            st.error(
-                                "❌ An error occurred while processing your request"
-                            )
-                    except:
-                        st.error("❌ An error occurred while processing your request")
+                            msg = msg.replace("Value error,", "❌ ")
+                            st.error(f"{msg}")
+                    else:
+                        st.error("⚠️ Unknown error occurred")
+                elif response.status_code == 500:
+                    error = response.json()["error"]
+                    st.error(f"⛔ {error}")
+                else:
+                    st.error(f"⛔ API Error: {response.status_code} - {response.text}")
 
             except Exception as e:
                 st.error(f"❌ An unexpected error occurred: {str(e)}")
