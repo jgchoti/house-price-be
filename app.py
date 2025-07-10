@@ -18,6 +18,14 @@ st.set_page_config(
 st.markdown(
     """
 <style>
+:root, [data-theme="light"]{
+    --primary-color: black;
+    --bg-color:  #f8f9fa;
+}
+ [data-theme="dark"] {
+    --primary-color: white;
+    --bg-color: #0E1117;
+  }
     .main-header {
         text-align: center;
         padding: 36px 0;
@@ -70,7 +78,8 @@ st.markdown(
     }
     
     .info-card {
-        background-color: #f8f9fa;
+        background-color: var(--bg-color);
+        color: var(--primary-color);
         border-left: 6px solid #764ba2;
         padding: 16px;
         margin: 6px 0;
