@@ -20,7 +20,7 @@ st.markdown(
 <style>
 :root, [data-theme="light"]{
     --primary-color: black;
-    --bg-color:  #f8f9fa;
+    --bg-color:  #f8f9faBB;
 }
  [data-theme="dark"] {
     --primary-color: white;
